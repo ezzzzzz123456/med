@@ -2,8 +2,8 @@ import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 're
 import HospitalDashboard from './pages/HospitalDashboard';
 import DiseaseBot from './pages/DiseaseBot';
 import FirstAid from './pages/FirstAid';
-import Login from './pages/Login';          // ✅ New Import
-import DonorInbox from './pages/DonorInbox'; // ✅ New Import
+import Login from './pages/Login';
+import DonorInbox from './pages/DonorInbox';
 import { AuthProvider } from './context/AuthContext';
 import './index.css';
 import 'leaflet/dist/leaflet.css';
@@ -14,7 +14,7 @@ function App() {
       <BrowserRouter>
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
           
-          {/* --- SMART NAVIGATION BAR --- */}
+          {/* --- GRADIENT NAVBAR --- */}
           <Navbar />
 
           {/* --- MAIN CONTENT --- */}
@@ -39,54 +39,62 @@ function App() {
   );
 }
 
-// --- SUB-COMPONENT: NAVBAR ---
-// We extracted this to a separate component so we can use 'useLocation' hook
-// to hide the navbar on the login page if we wanted to (optional).
+// --- SUB-COMPONENT: NAVBAR (Updated Gradient & Off-White Icon) ---
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Helper to handle Logout / Login navigation
   const handleAuthAction = () => {
-    // If we are already on login, do nothing. Otherwise, go to login.
     navigate('/');
   };
 
   return (
-    <nav className="bg-white/90 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50 transition-all">
+    // ✅ UPDATED GRADIENT: Pulled back (starts light, hits dark cyan earlier)
+    <nav className="bg-gradient-to-r from-slate-50 via-cyan-700 to-cyan-950 shadow-lg sticky top-0 z-50 transition-all">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         
-        {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 text-2xl font-bold text-slate-800 tracking-tight hover:opacity-80 transition">
-          <span className="bg-teal-500 text-white w-9 h-9 flex items-center justify-center rounded-lg shadow-md">M</span>
-          MediConnect<span className="text-teal-500">Pro</span>
+        {/* Logo Section */}
+        <Link to="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity group">
+          
+          {/* ✅ UPDATED ICON: Off-White Background with Dark Text */}
+          <div className="bg-stone-100 text-cyan-900 w-10 h-10 flex items-center justify-center rounded-xl shadow-md transform group-hover:-rotate-6 transition-transform duration-300 border border-stone-200">
+             <span className="text-xl font-extrabold italic">M</span>
+          </div>
+          
+          {/* Text Branding */}
+          <div className="text-2xl tracking-tight leading-none flex items-baseline">
+            {/* 'Medi' is dark to contrast with the light start of gradient */}
+            <span className="font-bold text-slate-800">Medi</span>
+            {/* 'Sense' uses a light gradient to pop against the darker via/to colors */}
+            <span className="font-extrabold bg-gradient-to-r from-cyan-400 to-teal-300 bg-clip-text text-transparent ml-0.5 filter drop-shadow-sm">Sense</span>
+          </div>
         </Link>
 
-        {/* Desktop Menu - Useful for Demo Navigation */}
+        {/* Desktop Menu (Sits on the Dark Cyan side - Text is White) */}
         <div className="hidden md:flex gap-2">
           <NavLink to="/hospital" label="Hospital Portal" />
-          <NavLink to="/donor-inbox" label="Donor Inbox" /> {/* ✅ New Link */}
+          <NavLink to="/donor-inbox" label="Donor Inbox" />
           <NavLink to="/chat" label="AI Doctor" />
           <NavLink to="/first-aid" label="First Aid" />
         </div>
 
-        {/* Dynamic CTA Button */}
+        {/* Dynamic CTA Button (Off-White for consistency) */}
         <button 
           onClick={handleAuthAction}
-          className="hidden md:block bg-slate-900 text-white px-5 py-2 rounded-full font-bold text-sm hover:bg-slate-800 hover:shadow-lg transition transform hover:-translate-y-0.5"
+          className="hidden md:block bg-stone-50 text-cyan-900 px-5 py-2 rounded-full font-bold text-sm hover:bg-white hover:shadow-lg transition transform hover:-translate-y-0.5 border border-cyan-800"
         >
-          {location.pathname === '/' ? 'Sign Up' : 'Logout'}
+          {location.pathname === '/' ? 'Sign Up / Login' : 'Logout'}
         </button>
       </div>
     </nav>
   );
 };
 
-// Helper Component for consistent links
+// Helper Component for Links (White text for dark background area)
 const NavLink = ({ to, label }) => (
   <Link 
     to={to} 
-    className="px-4 py-2 text-slate-600 font-semibold text-sm hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-all duration-200"
+    className="px-4 py-2 text-cyan-50 font-semibold text-sm hover:text-white hover:bg-white/10 rounded-lg transition-all duration-200"
   >
     {label}
   </Link>
