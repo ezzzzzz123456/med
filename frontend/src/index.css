@@ -2,10 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Fix for Map Visibility */
+:root {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: #f0f4f8; /* Soft blue-grey background */
+}
+
+/* Make the map look professional with rounded corners and shadow */
 .leaflet-container {
   width: 100%;
   height: 100%;
-  min-height: 500px;
+  border-radius: 0.75rem; /* Rounded-xl */
   z-index: 10;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f1f1; 
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; 
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; 
 }
