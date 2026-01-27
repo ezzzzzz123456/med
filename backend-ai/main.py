@@ -1,83 +1,258 @@
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-import time
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from groq import Groq
+import os, uuid, json, random, requests, io
+from PIL import Image
+import pytesseract
+
+# ------------------------------------------------
+# CONFIGURATION
+# ------------------------------------------------
+
+# 1. WINDOWS TESSERACT PATH (Crucial for OCR)
+pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+
+# 2. API SETUP
+# Replace with your actual key if not using environment variables
+api_key = os.getenv("GROQ_API_KEY") or ""
+llm = Groq(api_key=api_key)
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 1. Pydantic Models for PRO Validation
-class SymptomInput(BaseModel):
-    symptoms: str = Field(..., min_length=10, max_length=1000)
+# ------------------------------------------------
+# DATA & PROMPTS
+# ------------------------------------------------
 
-class Doctor(BaseModel):
-    name: str
-    experience: str
-    availability: str
+doctor_names = [
+    "Dr. Anil Sharma", "Dr. Priya Verma", "Dr. Rakesh Kumar", 
+    "Dr. Neha Singh", "Dr. Amit Patel"
+]
 
-class BotResponse(BaseModel):
-    probable_condition: str
-    confidence_level: str
-    specialist_required: str
-    medical_disclaimer: str
-    doctors_available: list[Doctor]
+sessions = {}
+chat_state = {}        # chat | emergency | final
+question_counter = {}
 
-# 2. The AI Endpoint
-@app.post("/api/ai/diagnose", response_model=BotResponse)
-async def analyze_health(data: SymptomInput):
-    # Simulate API Latency for Realism in Demo
-    time.sleep(1)
-    
-    text = data.symptoms.lower()
-    
-    # --- PROMPT/LOGIC FOR AI ---
-    # In a real PRO app, you pass `text` to LangChain/OpenAI here.
-    # For Hackathon reliability, we use a smart conditional tree that never fails.
+EMERGENCY_CHECK_PROMPT = """
+You are a medical safety triage assistant.
+Consider severity, duration, danger signs, and wording.
+Answer ONLY yes or no.
+Does this situation likely need immediate medical attention right now?
+"""
 
-    if "chest" in text or "heart" in text or "breath" in text:
-        return BotResponse(
-            probable_condition="Angina or potential Cardiac Event",
-            confidence_level="High",
-            specialist_required="Cardiologist",
-            medical_disclaimer="AI is not a substitute for professional diagnosis. Seek emergency help immediately.",
-            doctors_available=[
-                Doctor(name="Dr. A. Sharma (Cardio)", experience="15 Yrs", availability="Instant ER"),
-                Doctor(name="Dr. M. Reddy (Cardio)", experience="12 Yrs", availability="Today, 4:00 PM")
-            ]
-        )
+FIRST_AID_PROMPT = """
+Give calm, clear first-aid steps for this situation.
+Rules:
+- Use very simple language
+- Step-by-step
+- No panic
+- No diagnosis
+- End with EXACTLY ONE important follow-up question
+"""
+
+MAIN_PROMPT = """
+You are a calm medical assistant.
+Rules:
+- You are NOT a doctor
+- Do NOT diagnose diseases
+- Use simple language
+- Ask at most ONE question per reply
+- Stop asking questions once enough info is known
+- If confident, return FINAL JSON ONLY
+
+FINAL JSON FORMAT:
+{
+  "analysis":"short clear explanation",
+  "possible_conditions":["likely category","second category"],
+  "severity":"mild | moderate | severe | emergency",
+  "first_aid_or_home_remedy":"simple safe advice",
+  "recommended_specialist":"doctor type",
+  "department":"department",
+  "disclaimer":"short disclaimer"
+}
+"""
+
+PRESCRIPTION_PROMPT = """
+You are an expert pharmacist AI. Analyze the text extracted from a prescription.
+Return ONLY a raw JSON object with this exact structure:
+{
+    "medicines": [
+        {
+            "name": "Medicine Name + Strength",
+            "type": "Category (e.g. Antibiotic, Painkiller)",
+            "purpose": "What it treats (very brief)",
+            "standard": "Dosage instructions (e.g. 1 tab twice daily)"
+        }
+    ]
+}
+If the text is messy, use your medical knowledge to correct spelling and infer the likely medicine.
+"""
+
+# ------------------------------------------------
+# UTILITIES
+# ------------------------------------------------
+
+def clean(text: str):
+    return " ".join(text.replace("\n", " ").split())
+
+def extract_json(text):
+    try:
+        s, e = text.find("{"), text.rfind("}")
+        return json.loads(text[s:e+1])
+    except:
+        return None
+
+def call_llm(messages, max_tokens=250, json_mode=False):
+    params = {
+        "model": "llama-3.1-8b-instant", # or "grok-beta" if available
+        "messages": messages,
+        "temperature": 0.1 if json_mode else 0.2,
+        "max_tokens": max_tokens
+    }
+    if json_mode:
+        params["response_format"] = {"type": "json_object"}
         
-    elif "stomach" in text or "vomit" in text or "nausea" in text:
-        return BotResponse(
-            probable_condition="Gastroenteritis or Acid Reflux",
-            confidence_level="Medium",
-            specialist_required="Gastroenterologist",
-            medical_disclaimer="Please consult a doctor for a physical examination.",
-            doctors_available=[
-                Doctor(name="Dr. P. Kumar (Gastro)", experience="10 Yrs", availability="Today, 6:00 PM")
-            ]
-        )
+    return llm.chat.completions.create(**params).choices[0].message.content.strip()
+
+# ------------------------------------------------
+# LOCATION HELPERS
+# ------------------------------------------------
+
+def geocode_address(address):
+    try:
+        r = requests.get(
+            "https://nominatim.openstreetmap.org/search",
+            params={"q": address, "format": "json", "limit": 1},
+            headers={"User-Agent": "medical-ai"},
+            timeout=10
+        ).json()
+        if not r: return None
+        return float(r[0]["lat"]), float(r[0]["lon"])
+    except: return None
+
+def find_nearby_hospital(lat, lon):
+    query = f"""
+    [out:json];
+    (
+      node["amenity"="hospital"](around:3000,{lat},{lon});
+      node["amenity"="clinic"](around:3000,{lat},{lon});
+    );
+    out tags center;
+    """
+    try:
+        r = requests.post("https://overpass-api.de/api/interpreter", data=query, timeout=10).json()
+        for e in r.get("elements", []):
+            tags = e.get("tags", {})
+            return {
+                "name": tags.get("name", "Nearby Hospital"),
+                "address": ", ".join(v for k, v in tags.items() if k.startswith("addr:")) or "Address unavailable",
+                "phone": tags.get("phone") or "Check locally",
+                "type": tags.get("amenity", "hospital")
+            }
+    except: pass
+    return {"name": "Nearest Hospital", "address": "Check Maps", "phone": "112", "type": "hospital"}
+
+# ------------------------------------------------
+# ENDPOINTS
+# ------------------------------------------------
+
+class ChatRequest(BaseModel):
+    message: str
+    session_id: str | None = None
+    address: str | None = None
+
+@app.post("/chat")
+def chat(req: ChatRequest):
+    sid = req.session_id or str(uuid.uuid4())
+    sessions.setdefault(sid, [])
+    chat_state.setdefault(sid, "chat")
+    question_counter.setdefault(sid, 0)
+
+    sessions[sid].append({"role": "user", "content": req.message})
+    sessions[sid] = sessions[sid][-6:]
+
+    # Emergency Check
+    emergency_check = call_llm([
+        {"role": "system", "content": EMERGENCY_CHECK_PROMPT},
+        {"role": "user", "content": req.message}
+    ], max_tokens=5)
+
+    if "yes" in emergency_check.lower() and chat_state[sid] == "chat":
+        chat_state[sid] = "emergency"
+        first_aid = call_llm([
+            {"role": "system", "content": FIRST_AID_PROMPT},
+            {"role": "user", "content": req.message}
+        ])
+        return {"session_id": sid, "reply": clean(first_aid)}
+
+    # Conversation Limiter
+    if chat_state[sid] == "chat":
+        question_counter[sid] += 1
+        if question_counter[sid] >= 3:
+            chat_state[sid] = "final"
+
+    # Main Response
+    reply = call_llm([{"role": "system", "content": MAIN_PROMPT}] + sessions[sid])
+    data = extract_json(reply)
+
+    if data and chat_state[sid] in ["final", "emergency"]:
+        data["doctor_name"] = random.choice(doctor_names)
+        data["emergency_number"] = "112"
         
-    else:
-        return BotResponse(
-            probable_condition="Unspecified Viral Infection / Fatigue",
-            confidence_level="Low",
-            specialist_required="General Physician",
-            medical_disclaimer="Please visit a clinic if symptoms persist for 24 hours.",
-            doctors_available=[
-                Doctor(name="Dr. S. Nair (GP)", experience="8 Yrs", availability="Available Now")
-            ]
-        )
+        if req.address:
+            coords = geocode_address(req.address)
+            data["nearby_hospital"] = find_nearby_hospital(*coords) if coords else {"name": "Nearest Hospital"}
+        else:
+            data["nearby_hospital"] = {"name": "Nearest Hospital", "address": "Address not provided"}
+            
+        return JSONResponse({"session_id": sid, "final_analysis": data})
 
-# RUN: uvicorn main:app --reload --port 8000
-# ... (Keep all your existing code above) ...
+    return {"session_id": sid, "reply": clean(reply)}
 
-# ADD THIS AT THE VERY BOTTOM:
+# --- NEW DECIPHER ENDPOINT (Connected to Frontend) ---
+@app.post("/analyze")
+async def analyze_prescription(file: UploadFile = File(...)):
+    try:
+        # 1. Read Image
+        image_data = await file.read()
+        image = Image.open(io.BytesIO(image_data))
+
+        # 2. Tesseract OCR
+        print("Scanning image...")
+        extracted_text = pytesseract.image_to_string(image)
+        print(f"Extracted: {extracted_text[:100]}...")
+
+        # 3. Grok Analysis
+        print("Analyzing with Grok...")
+        response_text = call_llm([
+            {"role": "system", "content": PRESCRIPTION_PROMPT},
+            {"role": "user", "content": f"Prescription Text:\n{extracted_text}"}
+        ], json_mode=True)
+        
+        structured_data = extract_json(response_text)
+
+        if not structured_data:
+            return {"medicines": [{"name": "Error Parsing", "type": "Error", "purpose": "Try clearer image", "standard": "N/A"}]}
+
+        return {
+            "id": str(uuid.uuid4()),
+            "timestamp": "Today",
+            "medicines": structured_data.get("medicines", [])
+        }
+
+    except Exception as e:
+        print(f"Server Error: {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
