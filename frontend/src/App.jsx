@@ -14,13 +14,14 @@ function App() {
       <BrowserRouter>
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
           
-          {/* --- GRADIENT NAVBAR --- */}
+          {/* --- SMART NAVBAR --- */}
+          {/* It will automatically hide on the Login page */}
           <Navbar />
 
           {/* --- MAIN CONTENT --- */}
           <div className="fade-in"> 
             <Routes>
-              {/* Step 1: Default Page is now Login */}
+              {/* Step 1: Default Page is now Login/Signup */}
               <Route path="/" element={<Login />} />
               
               {/* Step 2: Role-Based Routes */}
@@ -39,38 +40,36 @@ function App() {
   );
 }
 
-// --- SUB-COMPONENT: NAVBAR (Updated Gradient & Off-White Icon) ---
+// --- SUB-COMPONENT: NAVBAR ---
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
+
+  // ✅ CRITICAL FIX: Hide Navbar completely on the Login page ('/')
+  if (location.pathname === '/') {
+    return null;
+  }
 
   const handleAuthAction = () => {
     navigate('/');
   };
 
   return (
-    // ✅ UPDATED GRADIENT: Pulled back (starts light, hits dark cyan earlier)
     <nav className="bg-gradient-to-r from-slate-50 via-cyan-700 to-cyan-950 shadow-lg sticky top-0 z-50 transition-all">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         
-        {/* Logo Section */}
+        {/* MediSense Logo */}
         <Link to="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity group">
-          
-          {/* ✅ UPDATED ICON: Off-White Background with Dark Text */}
           <div className="bg-stone-100 text-cyan-900 w-10 h-10 flex items-center justify-center rounded-xl shadow-md transform group-hover:-rotate-6 transition-transform duration-300 border border-stone-200">
              <span className="text-xl font-extrabold italic">M</span>
           </div>
-          
-          {/* Text Branding */}
           <div className="text-2xl tracking-tight leading-none flex items-baseline">
-            {/* 'Medi' is dark to contrast with the light start of gradient */}
             <span className="font-bold text-slate-800">Medi</span>
-            {/* 'Sense' uses a light gradient to pop against the darker via/to colors */}
             <span className="font-extrabold bg-gradient-to-r from-cyan-400 to-teal-300 bg-clip-text text-transparent ml-0.5 filter drop-shadow-sm">Sense</span>
           </div>
         </Link>
 
-        {/* Desktop Menu (Sits on the Dark Cyan side - Text is White) */}
+        {/* Desktop Menu */}
         <div className="hidden md:flex gap-2">
           <NavLink to="/hospital" label="Hospital Portal" />
           <NavLink to="/donor-inbox" label="Donor Inbox" />
@@ -78,19 +77,19 @@ const Navbar = () => {
           <NavLink to="/first-aid" label="First Aid" />
         </div>
 
-        {/* Dynamic CTA Button (Off-White for consistency) */}
+        {/* Logout Button */}
         <button 
           onClick={handleAuthAction}
           className="hidden md:block bg-stone-50 text-cyan-900 px-5 py-2 rounded-full font-bold text-sm hover:bg-white hover:shadow-lg transition transform hover:-translate-y-0.5 border border-cyan-800"
         >
-          {location.pathname === '/' ? 'Sign Up / Login' : 'Logout'}
+          Logout
         </button>
       </div>
     </nav>
   );
 };
 
-// Helper Component for Links (White text for dark background area)
+// Helper Component for Links
 const NavLink = ({ to, label }) => (
   <Link 
     to={to} 
