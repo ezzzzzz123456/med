@@ -1,19 +1,25 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-  role: { type: String, default: 'user' },
   name: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  role: { type: String, default: 'user' }, // 'user' or 'hospital'
   
-  // Personal Details
-  age: { type: Number, required: true },
-  address: { type: String, required: true },
+  // specific fields for Donors
+  age: { type: Number },
+  bloodGroup: { type: String },
+  address: { type: String },
+  phone: { type: String }, // Added for contact
   
-  // Medical Data
-  bloodGroup: { type: String, required: true },
-  medicalHistory: { type: String, default: "None" },
-  
+  // Added for Map Location
+  location: {
+    lat: { type: Number },
+    lng: { type: Number }
+  },
+
+  medicalHistory: { type: String },
+  isAvailable: { type: Boolean, default: true },
   createdAt: { type: Date, default: Date.now }
 });
 

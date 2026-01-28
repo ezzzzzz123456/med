@@ -20,6 +20,9 @@ mongoose.connect(process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/mediconnect
   .catch((err) => console.log("⚠️ Database Error:", err));
 
 // ACTIVATE ROUTES
+app.get('/', (req, res) => {
+  res.send('✅ MediConnect Backend is WORKING!');
+});
 app.use('/api/auth', authRoutes);
 app.use('/api/blood', bloodRoutes);
 

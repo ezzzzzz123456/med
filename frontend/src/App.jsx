@@ -1,42 +1,72 @@
-import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import HospitalDashboard from './pages/HospitalDashboard';
-import DiseaseBot from './pages/DiseaseBot';
-import FirstAid from './pages/FirstAid';
 import Login from './pages/Login';
-import DonorInbox from './pages/DonorInbox';
-import { AuthProvider } from './context/AuthContext';
+import DonorInbox from './pages/DonorInbox'; // Ensure you have this page created
+import DiseaseBot from './pages/DiseaseBot'; // Optional features
+import FirstAid from './pages/FirstAid';     // Optional features
 import './index.css';
 import 'leaflet/dist/leaflet.css';
 
+// --- SECURITY COMPONENT: PROTECTED ROUTE ---
+// This checks if you are logged in AND if you have the right role
+const ProtectedRoute = ({ children, requiredRole }) => {
+  const isAuth = localStorage.getItem('userName');
+  const userRole = localStorage.getItem('userRole');
+
+  if (!isAuth) {
+    // If not logged in, go to Login
+    return <Navigate to="/" replace />;
+  }
+
+  if (requiredRole && userRole !== requiredRole) {
+    // If logged in but wrong role (e.g. Donor trying to access Hospital), go back
+    return <Navigate to="/" replace />;
+  }
+
+  return children;
+};
+
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
-          
-          {/* --- SMART NAVBAR --- */}
-          {/* It will automatically hide on the Login page */}
-          <Navbar />
+    <BrowserRouter>
+      <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+        
+        {/* Navbar handles the visibility logic */}
+        <Navbar />
 
-          {/* --- MAIN CONTENT --- */}
-          <div className="fade-in"> 
-            <Routes>
-              {/* Step 1: Default Page is now Login/Signup */}
-              <Route path="/" element={<Login />} />
-              
-              {/* Step 2: Role-Based Routes */}
-              <Route path="/hospital" element={<HospitalDashboard />} />
-              <Route path="/donor-inbox" element={<DonorInbox />} />
-              
-              {/* Public Features */}
-              <Route path="/chat" element={<DiseaseBot />} />
-              <Route path="/first-aid" element={<FirstAid />} />
-            </Routes>
-          </div>
-
+        <div className="fade-in"> 
+          <Routes>
+            {/* 1. Public Login Page */}
+            <Route path="/" element={<Login />} />
+            
+            {/* 2. HOSPITAL ONLY Route */}
+            <Route 
+              path="/hospital-dashboard" 
+              element={
+                <ProtectedRoute requiredRole="hospital">
+                  <HospitalDashboard />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* 3. DONOR ONLY Route */}
+            <Route 
+              path="/donor-inbox" 
+              element={
+                <ProtectedRoute requiredRole="user">
+                  <DonorInbox />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Public Features (Accessible to anyone logged in) */}
+            <Route path="/chat" element={<DiseaseBot />} />
+            <Route path="/first-aid" element={<FirstAid />} />
+          </Routes>
         </div>
-      </BrowserRouter>
-    </AuthProvider>
+
+      </div>
+    </BrowserRouter>
   );
 }
 
@@ -44,13 +74,18 @@ function App() {
 const Navbar = () => {
   const location = useLocation();
   const navigate = useNavigate();
+  
+  // Get the current role from storage
+  const userRole = localStorage.getItem('userRole');
 
-  // ✅ CRITICAL FIX: Hide Navbar completely on the Login page ('/')
+  // Hide Navbar completely on the Login page
   if (location.pathname === '/') {
     return null;
   }
 
-  const handleAuthAction = () => {
+  const handleLogout = () => {
+    // Clear all data
+    localStorage.clear();
     navigate('/');
   };
 
@@ -58,8 +93,8 @@ const Navbar = () => {
     <nav className="bg-gradient-to-r from-slate-50 via-cyan-700 to-cyan-950 shadow-lg sticky top-0 z-50 transition-all">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         
-        {/* MediSense Logo */}
-        <Link to="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity group">
+        {/* Logo */}
+        <Link to={userRole === 'hospital' ? "/hospital-dashboard" : "/donor-inbox"} className="flex items-center gap-2.5 hover:opacity-90 transition-opacity group">
           <div className="bg-stone-100 text-cyan-900 w-10 h-10 flex items-center justify-center rounded-xl shadow-md transform group-hover:-rotate-6 transition-transform duration-300 border border-stone-200">
              <span className="text-xl font-extrabold italic">M</span>
           </div>
@@ -69,17 +104,27 @@ const Navbar = () => {
           </div>
         </Link>
 
-        {/* Desktop Menu */}
+        {/* --- DYNAMIC MENU BASED ON ROLE --- */}
         <div className="hidden md:flex gap-2">
-          <NavLink to="/hospital" label="Hospital Portal" />
-          <NavLink to="/donor-inbox" label="Donor Inbox" />
+          
+          {/* ONLY Show Hospital Portal if role is 'hospital' */}
+          {userRole === 'hospital' && (
+            <NavLink to="/hospital-dashboard" label="Hospital Command Center" />
+          )}
+
+          {/* ONLY Show Donor Inbox if role is 'user' */}
+          {userRole === 'user' && (
+            <NavLink to="/donor-inbox" label="My Inbox" />
+          )}
+
+          {/* Common Links */}
           <NavLink to="/chat" label="AI Doctor" />
           <NavLink to="/first-aid" label="First Aid" />
         </div>
 
-        {/* Logout Button */}
+        {/* Logout */}
         <button 
-          onClick={handleAuthAction}
+          onClick={handleLogout}
           className="hidden md:block bg-stone-50 text-cyan-900 px-5 py-2 rounded-full font-bold text-sm hover:bg-white hover:shadow-lg transition transform hover:-translate-y-0.5 border border-cyan-800"
         >
           Logout
@@ -89,7 +134,7 @@ const Navbar = () => {
   );
 };
 
-// Helper Component for Links
+// Helper
 const NavLink = ({ to, label }) => (
   <Link 
     to={to} 

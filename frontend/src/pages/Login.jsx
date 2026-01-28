@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   FaHospital, FaUserAlt, FaEnvelope, FaLock, 
-  FaMapMarkerAlt, FaHeartbeat, FaIdCard, FaBuilding 
+  FaMapMarkerAlt, FaHeartbeat, FaIdCard, FaBuilding, FaArrowLeft, FaKey 
 } from 'react-icons/fa';
 
 // --- INPUT COMPONENT ---
@@ -21,20 +21,21 @@ const InputGroup = ({ icon: Icon, type, name, placeholder, value, onChange, hasE
       className={`w-full pl-12 pr-4 py-4 bg-slate-50 border rounded-xl focus:outline-none focus:ring-2 transition-all font-medium
         ${hasError 
           ? 'border-red-500 focus:border-red-500 focus:ring-red-200 bg-red-50 text-red-900 placeholder-red-300' 
-          : 'border-slate-200 focus:ring-cyan-500 focus:bg-white text-slate-700 hover:border-cyan-300'}`} // Added hover effect
+          : 'border-slate-200 focus:ring-cyan-500 focus:bg-white text-slate-700 hover:border-cyan-300'}`} 
       required={required} 
     />
   </div>
 );
 
 const Login = () => {
-  const [isLogin, setIsLogin] = useState(true); 
+  // view: 'login', 'register', or 'forgot'
+  const [view, setView] = useState('login'); 
   const [role, setRole] = useState('user'); 
   const [error, setError] = useState(null); 
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
-    email: '', password: '', name: '', address: '',
+    email: '', password: '', newPassword: '', name: '', address: '',
     age: '', bloodGroup: '', medicalHistory: '', 
     establishmentId: '', nabhId: '' 
   });
@@ -47,30 +48,69 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
-    const endpoint = isLogin ? '/login' : '/register';
+
+    // Determine endpoint based on current view
+    let endpoint = '';
+    let payload = { ...formData, role };
+
+    if (view === 'login') endpoint = '/login';
+    else if (view === 'register') endpoint = '/register';
+    else if (view === 'forgot') {
+        endpoint = '/reset-password';
+        // Backend expects 'newPassword', so we ensure it's in the payload
+        payload = { email: formData.email, newPassword: formData.newPassword, role };
+    }
+
     const apiUrl = `http://localhost:5001/api/auth${endpoint}`;
 
     try {
-      const res = await axios.post(apiUrl, { ...formData, role });
+      const res = await axios.post(apiUrl, payload);
+
       if (res.data.success) {
-        localStorage.setItem('userRole', role);
-        localStorage.setItem('userName', res.data.user?.name || formData.name);
-        navigate(role === 'hospital' ? '/hospital-dashboard' : '/donor-inbox');
+        if (view === 'forgot') {
+            // Password Reset Success
+            alert("✅ Password Reset Successful! Please Login.");
+            setView('login'); // Return to login screen
+        } else {
+            // Login/Register Success
+            const user = res.data.user || {};
+            
+            // 1. Save Basic Info
+            localStorage.setItem('userRole', role);
+            localStorage.setItem('userName', user.name || formData.name);
+            
+            // ✅ 2. CRITICAL: Save ID and Blood Group (For Donor Inbox)
+            if (user.id) localStorage.setItem('userId', user.id);
+            if (role === 'user') {
+                localStorage.setItem('userBloodGroup', user.bloodGroup || formData.bloodGroup || "O+");
+            }
+
+            // 3. Save Location (For Hospital Dashboard)
+            if(user.address) localStorage.setItem('userAddress', user.address);
+            if(user.location) {
+                localStorage.setItem('userLat', user.location.lat);
+                localStorage.setItem('userLng', user.location.lng);
+            }
+
+            navigate(role === 'hospital' ? '/hospital-dashboard' : '/donor-inbox');
+        }
       }
     } catch (err) {
-      console.error("Login Error:", err.response?.data?.message);
-      setError(isLogin ? "Invalid Credentials" : "Unable to Register"); 
+      console.error("Auth Error:", err.response?.data?.message);
+      setError(err.response?.data?.message || "Operation Failed"); 
     }
+  };
+
+  const switchView = (newView) => {
+    setView(newView);
+    setError(null);
   };
 
   return (
     <div className="flex min-h-screen w-full bg-slate-50">
       
       {/* --- LEFT SIDE: BRANDING PANEL --- */}
-      {/* We added a 'z-10 shadow-2xl' to make it pop out over the white side slightly */}
       <div className="hidden lg:flex w-5/12 bg-slate-900 relative overflow-hidden flex-col justify-center items-center text-white p-12 z-10 shadow-[20px_0_60px_-15px_rgba(0,0,0,0.3)]">
-        
-        {/* Background shapes linking the colors */}
         <div className="absolute top-0 left-0 w-full h-full opacity-20 pointer-events-none">
             <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-cyan-500 rounded-full mix-blend-screen filter blur-[100px] animate-blob"></div>
             <div className="absolute bottom-[-10%] right-[-10%] w-[500px] h-[500px] bg-blue-600 rounded-full mix-blend-screen filter blur-[100px] animate-blob animation-delay-2000"></div>
@@ -94,16 +134,21 @@ const Login = () => {
           
           <div className="w-full max-w-md">
               
+              {/* Header Text Changes based on View */}
               <div className="text-left mb-10">
                   <h2 className="text-4xl font-bold text-slate-900 mb-2">
-                      {isLogin ? 'Welcome Back' : 'Create Account'}
+                      {view === 'login' && 'Welcome Back'}
+                      {view === 'register' && 'Create Account'}
+                      {view === 'forgot' && 'Reset Password'}
                   </h2>
                   <p className="text-slate-500 text-lg">
-                    {isLogin ? 'Please enter your details.' : 'Join us to make a difference.'}
+                    {view === 'login' && 'Please enter your details.'}
+                    {view === 'register' && 'Join us to make a difference.'}
+                    {view === 'forgot' && 'Enter email to set a new password.'}
                   </p>
               </div>
 
-              {/* Role Toggle */}
+              {/* Role Toggle (Always Visible) */}
               <div className="flex bg-slate-100 p-1.5 rounded-xl mb-8 border border-slate-200">
                   <button type="button" 
                     className={`flex-1 py-3 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all duration-300 ${role === 'user' ? 'bg-white shadow-sm text-cyan-700 ring-1 ring-black/5' : 'text-slate-500 hover:text-slate-700'}`} 
@@ -118,8 +163,10 @@ const Login = () => {
               </div>
 
               <form onSubmit={handleSubmit}>
-                  {!isLogin && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4">
+                  
+                  {/* --- REGISTER FIELDS --- */}
+                  {view === 'register' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 animate-fade-in-up">
                       <InputGroup icon={FaUserAlt} type="text" name="name" value={formData.name} onChange={handleChange} placeholder={role === 'hospital' ? "Hospital Name" : "Full Name"} hasError={!!error} />
                       <InputGroup icon={FaMapMarkerAlt} type="text" name="address" value={formData.address} onChange={handleChange} placeholder="City / Address" hasError={!!error} />
                       
@@ -149,26 +196,36 @@ const Login = () => {
                     </div>
                   )}
 
+                  {/* --- EMAIL (Always Visible) --- */}
                   <InputGroup icon={FaEnvelope} type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email Address" hasError={!!error} />
                   
-                  {/* Password + Forgot Link */}
-                  <div>
-                    <InputGroup icon={FaLock} type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" hasError={!!error} />
-                    
-                    {/* FORGOT PASSWORD LINK */}
-                    {isLogin && (
-                        <div className="text-right -mt-2 mb-6">
-                            <button type="button" onClick={() => alert("Feature coming soon!")} className="text-sm font-semibold text-cyan-600 hover:text-cyan-800 transition-colors">
-                                Forgot Password?
-                            </button>
-                        </div>
-                    )}
-                  </div>
+                  {/* --- PASSWORD (Login & Register) --- */}
+                  {view !== 'forgot' && (
+                    <div>
+                        <InputGroup icon={FaLock} type="password" name="password" value={formData.password} onChange={handleChange} placeholder="Password" hasError={!!error} />
+                        
+                        {/* Forgot Password Link */}
+                        {view === 'login' && (
+                            <div className="text-right -mt-2 mb-6">
+                                <button type="button" onClick={() => switchView('forgot')} className="text-sm font-semibold text-cyan-600 hover:text-cyan-800 transition-colors">
+                                    Forgot Password?
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                  )}
 
+                  {/* --- NEW PASSWORD (Forgot View Only) --- */}
+                  {view === 'forgot' && (
+                     <InputGroup icon={FaKey} type="password" name="newPassword" value={formData.newPassword} onChange={handleChange} placeholder="Enter New Password" hasError={!!error} />
+                  )}
+
+                  {/* --- SUBMIT BUTTON --- */}
                   <button type="submit" className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold text-lg hover:bg-slate-800 transform active:scale-[0.99] transition-all duration-200 shadow-xl shadow-slate-200 hover:shadow-2xl">
-                    {isLogin ? 'Sign In' : 'Create Account'}
+                    {view === 'login' ? 'Sign In' : view === 'register' ? 'Create Account' : 'Reset Password'}
                   </button>
 
+                  {/* Error Message */}
                   {error && (
                     <div className="text-center mt-6 animate-pulse">
                       <span className="text-red-500 font-semibold text-sm bg-red-50 px-4 py-2 rounded-lg border border-red-100">
@@ -178,12 +235,26 @@ const Login = () => {
                   )}
               </form>
               
+              {/* --- FOOTER (Switch between Login/Register/Back) --- */}
               <div className="text-center mt-8 pt-8 border-t border-slate-100">
                   <p className="text-slate-500">
-                    {isLogin ? "Don't have an account?" : "Already have an account?"}
-                    <button onClick={() => { setIsLogin(!isLogin); setError(null); }} className="font-bold text-cyan-600 ml-2 hover:underline">
-                      {isLogin ? 'Register Now' : 'Login Here'}
-                    </button>
+                    {view === 'login' && (
+                        <>
+                            New to MediSense? 
+                            <button onClick={() => switchView('register')} className="font-bold text-cyan-600 ml-2 hover:underline">Register Now</button>
+                        </>
+                    )}
+                    {view === 'register' && (
+                        <>
+                            Already have an account? 
+                            <button onClick={() => switchView('login')} className="font-bold text-cyan-600 ml-2 hover:underline">Login Here</button>
+                        </>
+                    )}
+                    {view === 'forgot' && (
+                        <button onClick={() => switchView('login')} className="flex items-center justify-center gap-2 font-bold text-slate-600 hover:text-slate-900 mx-auto transition-colors">
+                            <FaArrowLeft /> Back to Login
+                        </button>
+                    )}
                   </p>
               </div>
 
