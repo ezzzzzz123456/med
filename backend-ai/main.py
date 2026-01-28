@@ -1,8 +1,10 @@
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from groq import Groq
+from dotenv import load_dotenv 
+from pathlib import Path       
 import os, uuid, json, random, requests, io
 from PIL import Image
 import pytesseract
@@ -11,12 +13,22 @@ import pytesseract
 # CONFIGURATION
 # ------------------------------------------------
 
-# 1. WINDOWS TESSERACT PATH (Crucial for OCR)
+# 1. WINDOWS TESSERACT PATH
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-# 2. API SETUP
-# Replace with your actual key if not using environment variables
-api_key = os.getenv("GROQ_API_KEY") or ""
+# 2. ROBUST API KEY LOADING
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
+
+api_key = os.getenv("GROQ_API_KEY")
+
+print("--------------------------------------------------")
+if api_key:
+    print(f"✅ SUCCESS: API Key loaded! Starts with: {api_key[:10]}...")
+else:
+    print("❌ ERROR: API Key NOT found. Check your .env file location.")
+print("--------------------------------------------------")
+
 llm = Groq(api_key=api_key)
 
 app = FastAPI()
@@ -39,7 +51,7 @@ doctor_names = [
 ]
 
 sessions = {}
-chat_state = {}        # chat | emergency | final
+chat_state = {} 
 question_counter = {}
 
 EMERGENCY_CHECK_PROMPT = """
@@ -81,21 +93,25 @@ FINAL JSON FORMAT:
 }
 """
 
+# --- UPDATED PROMPT: CONTEXT AWARE ---
 PRESCRIPTION_PROMPT = """
-You are an expert pharmacist AI. Analyze the text extracted from a prescription.
-Return ONLY a raw JSON object with this exact structure:
+You are an expert pharmacist AI. Analyze the extracted prescription text.
+The patient has provided their symptoms/condition (if any). Use this to explain the PURPOSE of the medicine accurately.
+
+Return ONLY a raw JSON object:
 {
     "medicines": [
         {
             "name": "Medicine Name + Strength",
             "type": "Category (e.g. Antibiotic, Painkiller)",
-            "purpose": "What it treats (very brief)",
+            "purpose": "Explain why THIS patient is taking it based on their symptoms. Keep it simple (e.g., 'For your throat infection' or 'To control your blood pressure').",
             "standard": "Dosage instructions (e.g. 1 tab twice daily)"
         }
     ]
 }
-If the text is messy, use your medical knowledge to correct spelling and infer the likely medicine.
+If the text is messy, use medical knowledge to correct spelling.
 """
+# -------------------------------------------
 
 # ------------------------------------------------
 # UTILITIES
@@ -113,7 +129,7 @@ def extract_json(text):
 
 def call_llm(messages, max_tokens=250, json_mode=False):
     params = {
-        "model": "llama-3.1-8b-instant", # or "grok-beta" if available
+        "model": "llama-3.1-8b-instant",
         "messages": messages,
         "temperature": 0.1 if json_mode else 0.2,
         "max_tokens": max_tokens
@@ -218,9 +234,12 @@ def chat(req: ChatRequest):
 
     return {"session_id": sid, "reply": clean(reply)}
 
-# --- NEW DECIPHER ENDPOINT (Connected to Frontend) ---
+# --- UPGRADED DECIPHER ENDPOINT (With Context) ---
 @app.post("/analyze")
-async def analyze_prescription(file: UploadFile = File(...)):
+async def analyze_prescription(
+    file: UploadFile = File(...), 
+    user_symptoms: str = Form(None)  # <--- NEW: Accepts optional context
+):
     try:
         # 1. Read Image
         image_data = await file.read()
@@ -231,11 +250,15 @@ async def analyze_prescription(file: UploadFile = File(...)):
         extracted_text = pytesseract.image_to_string(image)
         print(f"Extracted: {extracted_text[:100]}...")
 
-        # 3. Grok Analysis
+        # 3. Grok Analysis (Now with Context!)
         print("Analyzing with Grok...")
+        
+        # We inject the user's symptoms into the message sent to AI
+        context_message = f"Patient Condition/Symptoms: {user_symptoms or 'Unknown'}\n\nPrescription Text:\n{extracted_text}"
+
         response_text = call_llm([
             {"role": "system", "content": PRESCRIPTION_PROMPT},
-            {"role": "user", "content": f"Prescription Text:\n{extracted_text}"}
+            {"role": "user", "content": context_message}
         ], json_mode=True)
         
         structured_data = extract_json(response_text)
