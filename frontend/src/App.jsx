@@ -7,10 +7,10 @@ import HospitalDashboard from './pages/HospitalDashboard';
 import FirstAid from './pages/FirstAid';
 import DonorInbox from './pages/DonorInbox';
 import DiseaseBot from './pages/DiseaseBot';
+import Prescription from './pages/Prescription'; // ✅ New Import from prescription branch
 
 // --- CONTEXT & STYLES ---
-// Kept from video branch (ensure this file exists, or remove this line if not used)
-import { AuthProvider } from './context/AuthContext'; 
+import { AuthProvider } from './context/AuthContext';
 import './index.css';
 import 'leaflet/dist/leaflet.css';
 
@@ -32,7 +32,6 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 
 function App() {
   return (
-    // Wrap in AuthProvider from video branch
     <AuthProvider>
       <BrowserRouter>
         <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
@@ -68,6 +67,7 @@ function App() {
               {/* Public Features (Accessible to anyone logged in) */}
               <Route path="/chat" element={<DiseaseBot />} />
               <Route path="/first-aid" element={<FirstAid />} />
+              <Route path="/prescription" element={<Prescription />} /> {/* ✅ New Route */}
             </Routes>
           </div>
 
@@ -128,9 +128,8 @@ const Navbar = () => {
 
           {/* Common Links */}
           <NavLink to="/chat" label="AI Doctor" />
-          
-          {/* Updated Name from video branch */}
           <NavLink to="/first-aid" label="Survival Guide" />
+          <NavLink to="/prescription" label="Decipher" /> {/* ✅ New Link added */}
         </div>
 
         {/* Logout Button */}
