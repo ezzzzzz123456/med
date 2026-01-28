@@ -1,9 +1,24 @@
+<<<<<<< HEAD
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import HospitalDashboard from './pages/HospitalDashboard';
 import Login from './pages/Login';
 import DonorInbox from './pages/DonorInbox'; // Ensure you have this page created
 import DiseaseBot from './pages/DiseaseBot'; // Optional features
 import FirstAid from './pages/FirstAid';     // Optional features
+=======
+import React from 'react';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+
+// --- PAGE IMPORTS ---
+import Login from './pages/Login';
+import HospitalDashboard from './pages/HospitalDashboard';
+import FirstAid from './pages/FirstAid';
+import DonorInbox from './pages/DonorInbox';
+import DiseaseBot from './pages/DiseaseBot';
+
+// --- CONTEXT & STYLES ---
+import { AuthProvider } from './context/AuthContext';
+>>>>>>> origin/video
 import './index.css';
 import 'leaflet/dist/leaflet.css';
 
@@ -28,11 +43,31 @@ const ProtectedRoute = ({ children, requiredRole }) => {
 
 function App() {
   return (
+<<<<<<< HEAD
     <BrowserRouter>
       <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
         
         {/* Navbar handles the visibility logic */}
         <Navbar />
+=======
+    <AuthProvider>
+      <BrowserRouter>
+        <div className="min-h-screen bg-slate-50 font-sans text-slate-900">
+          
+          {/* --- NAVBAR --- */}
+          <Navbar />
+
+          {/* --- MAIN CONTENT --- */}
+          <div className="fade-in"> 
+            <Routes>
+              <Route path="/" element={<Login />} />
+              <Route path="/hospital-dashboard" element={<HospitalDashboard />} />
+              <Route path="/donor-inbox" element={<DonorInbox />} />
+              <Route path="/chat" element={<DiseaseBot />} />
+              <Route path="/first-aid" element={<FirstAid />} />
+            </Routes>
+          </div>
+>>>>>>> origin/video
 
         <div className="fade-in"> 
           <Routes>
@@ -78,6 +113,7 @@ const Navbar = () => {
   // Get the current role from storage
   const userRole = localStorage.getItem('userRole');
 
+<<<<<<< HEAD
   // Hide Navbar completely on the Login page
   if (location.pathname === '/') {
     return null;
@@ -86,6 +122,12 @@ const Navbar = () => {
   const handleLogout = () => {
     // Clear all data
     localStorage.clear();
+=======
+  const handleAuthAction = () => {
+    if (location.pathname !== '/') {
+        localStorage.clear();
+    }
+>>>>>>> origin/video
     navigate('/');
   };
 
@@ -93,8 +135,13 @@ const Navbar = () => {
     <nav className="bg-gradient-to-r from-slate-50 via-cyan-700 to-cyan-950 shadow-lg sticky top-0 z-50 transition-all">
       <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
         
+<<<<<<< HEAD
         {/* Logo */}
         <Link to={userRole === 'hospital' ? "/hospital-dashboard" : "/donor-inbox"} className="flex items-center gap-2.5 hover:opacity-90 transition-opacity group">
+=======
+        {/* Logo Section */}
+        <Link to="/" className="flex items-center gap-2.5 hover:opacity-90 transition-opacity group">
+>>>>>>> origin/video
           <div className="bg-stone-100 text-cyan-900 w-10 h-10 flex items-center justify-center rounded-xl shadow-md transform group-hover:-rotate-6 transition-transform duration-300 border border-stone-200">
              <span className="text-xl font-extrabold italic">M</span>
           </div>
@@ -104,6 +151,7 @@ const Navbar = () => {
           </div>
         </Link>
 
+<<<<<<< HEAD
         {/* --- DYNAMIC MENU BASED ON ROLE --- */}
         <div className="hidden md:flex gap-2">
           
@@ -118,11 +166,23 @@ const Navbar = () => {
           )}
 
           {/* Common Links */}
+=======
+        {/* Desktop Menu */}
+        <div className="hidden md:flex gap-2">
+          <NavLink to="/hospital-dashboard" label="Hospital Portal" />
+          <NavLink to="/donor-inbox" label="Donor Inbox" />
+>>>>>>> origin/video
           <NavLink to="/chat" label="AI Doctor" />
-          <NavLink to="/first-aid" label="First Aid" />
+          
+          {/* ✅ NAME UPDATED HERE: */}
+          <NavLink to="/first-aid" label="Survival Guide" />
         </div>
 
+<<<<<<< HEAD
         {/* Logout */}
+=======
+        {/* Dynamic CTA Button */}
+>>>>>>> origin/video
         <button 
           onClick={handleLogout}
           className="hidden md:block bg-stone-50 text-cyan-900 px-5 py-2 rounded-full font-bold text-sm hover:bg-white hover:shadow-lg transition transform hover:-translate-y-0.5 border border-cyan-800"
@@ -134,7 +194,11 @@ const Navbar = () => {
   );
 };
 
+<<<<<<< HEAD
 // Helper
+=======
+// Helper Component for Links
+>>>>>>> origin/video
 const NavLink = ({ to, label }) => (
   <Link 
     to={to} 
