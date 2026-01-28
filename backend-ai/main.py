@@ -17,6 +17,7 @@ import pytesseract
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # 2. ROBUST API KEY LOADING
+# This specifically looks for the .env file in the root 'med' folder
 env_path = Path(__file__).resolve().parent.parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
@@ -93,7 +94,6 @@ FINAL JSON FORMAT:
 }
 """
 
-# --- UPDATED PROMPT: CONTEXT AWARE ---
 PRESCRIPTION_PROMPT = """
 You are an expert pharmacist AI. Analyze the extracted prescription text.
 The patient has provided their symptoms/condition (if any). Use this to explain the PURPOSE of the medicine accurately.
@@ -111,7 +111,6 @@ Return ONLY a raw JSON object:
 }
 If the text is messy, use medical knowledge to correct spelling.
 """
-# -------------------------------------------
 
 # ------------------------------------------------
 # UTILITIES
@@ -234,11 +233,10 @@ def chat(req: ChatRequest):
 
     return {"session_id": sid, "reply": clean(reply)}
 
-# --- UPGRADED DECIPHER ENDPOINT (With Context) ---
 @app.post("/analyze")
 async def analyze_prescription(
     file: UploadFile = File(...), 
-    user_symptoms: str = Form(None)  # <--- NEW: Accepts optional context
+    user_symptoms: str = Form(None)
 ):
     try:
         # 1. Read Image
@@ -246,14 +244,9 @@ async def analyze_prescription(
         image = Image.open(io.BytesIO(image_data))
 
         # 2. Tesseract OCR
-        print("Scanning image...")
         extracted_text = pytesseract.image_to_string(image)
-        print(f"Extracted: {extracted_text[:100]}...")
 
-        # 3. Grok Analysis (Now with Context!)
-        print("Analyzing with Grok...")
-        
-        # We inject the user's symptoms into the message sent to AI
+        # 3. Grok Analysis with Symptoms Context
         context_message = f"Patient Condition/Symptoms: {user_symptoms or 'Unknown'}\n\nPrescription Text:\n{extracted_text}"
 
         response_text = call_llm([
